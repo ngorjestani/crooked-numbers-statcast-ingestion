@@ -10,12 +10,15 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 
+SOURCE_NAME = "baseball_savant_statcast"
+
+
 def statcast_dataframe_to_parquet_bytes(
     dataframe: pd.DataFrame,
     target_date: date,
     *,
     ingestion_mode: str,
-    source_name: str = "statcast",
+    source_name: str = SOURCE_NAME,
     fetched_at_utc: datetime | None = None,
 ) -> bytes:
     """Enrich a Statcast dataframe and serialize it to parquet bytes."""
@@ -48,3 +51,15 @@ def _normalize_fetched_at(fetched_at_utc: datetime | None) -> datetime:
     if fetched_at_utc.tzinfo is None:
         return fetched_at_utc.replace(tzinfo=UTC)
     return fetched_at_utc.astimezone(UTC)
+
+
+def fetched_at_isoformat(fetched_at_utc: datetime | None = None) -> str:
+    """Return a normalized UTC timestamp string for ingestion metadata."""
+
+    return _normalize_fetched_at(fetched_at_utc).isoformat()
+
+
+def utc_now() -> datetime:
+    """Return the current UTC timestamp."""
+
+    return datetime.now(UTC)
