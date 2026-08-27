@@ -1,4 +1,4 @@
-# crooked-numbers-ingest
+# crooked-numbers-statcast-ingestion
 
 Ingestion repository for the Crooked Numbers baseball analytics platform.
 
