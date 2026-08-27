@@ -1,0 +1,2 @@
+python-dotenv>=1.0.1,<2.0.0
+pybaseball>=2.2.7,<3.0.0
