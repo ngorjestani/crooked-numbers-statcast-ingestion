@@ -6,6 +6,7 @@ import logging
 from datetime import date
 
 from crooked_numbers_ingest.dates import target_dates
+from crooked_numbers_ingest.parquet import statcast_dataframe_to_parquet_bytes
 from crooked_numbers_ingest.settings import Settings
 from crooked_numbers_ingest.statcast import fetch_statcast_for_date
 
@@ -49,7 +50,18 @@ def run() -> None:
             game_date.isoformat(),
             blob_path,
         )
-        LOGGER.info("TODO: serialize dataframe to parquet and upload bytes to storage")
+        parquet_bytes = statcast_dataframe_to_parquet_bytes(
+            statcast_frame,
+            game_date,
+            ingestion_mode=settings.ingestion_mode,
+        )
+        LOGGER.info(
+            "Serialized %s rows for %s into %s parquet bytes",
+            row_count,
+            game_date.isoformat(),
+            len(parquet_bytes),
+        )
+        LOGGER.info("TODO: upload parquet bytes to storage")
 
 
 if __name__ == "__main__":

@@ -1,2 +1,4 @@
 python-dotenv>=1.0.1,<2.0.0
+pandas>=2.2.2,<3.0.0
 pybaseball>=2.2.7,<3.0.0
+pyarrow>=17.0.0,<18.0.0
