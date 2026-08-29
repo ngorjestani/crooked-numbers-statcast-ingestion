@@ -21,7 +21,7 @@ var contributorRoleDefinitionId = subscriptionResourceId(
 )
 var userAccessAdministratorRoleDefinitionId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
-  'f1a07417-d97a-45cb-824c-7a7467783830'
+  '18d7d88d-d35e-4fb5-a5c3-7773c20a72d9'
 )
 var federatedCredentialName = 'github-main'
 var useImmutableSubject = !empty(githubOwnerId) && !empty(githubRepoId)
