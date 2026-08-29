@@ -166,6 +166,7 @@ The bootstrap template creates:
 - user-assigned managed identity `id-github-crooked-numbers-dev`
 - federated identity credential for the repository `main` branch
 - `Contributor` role assignment on the `crooked-numbers` resource group
+- `User Access Administrator` role assignment on the `crooked-numbers` resource group
 
 For repositories using GitHub's immutable OIDC subject format, provide both `githubOwnerId` and `githubRepoId`. As of July 15, 2026, repositories created after that date use the immutable format by default, and renamed or transferred repositories also move to that format.
 
@@ -192,6 +193,8 @@ After deployment, set these GitHub Actions repository variables in:
 The `principalId` output is useful for auditing and RBAC verification, but it does not need to be stored in GitHub Actions.
 
 The deployment workflow uses GitHub Actions OIDC with repository variables, not client secrets.
+
+If the bootstrap identity already exists, redeploying the bootstrap template is still required when you change its role assignments or federated credential shape. Azure will reconcile the identity configuration, but it will not pick up new permissions until the template is deployed again.
 
 ## Expected Blob Layout
 

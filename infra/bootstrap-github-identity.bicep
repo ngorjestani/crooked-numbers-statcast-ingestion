@@ -19,6 +19,10 @@ var contributorRoleDefinitionId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
   'b24988ac-6180-42a0-ab88-20f7382dd24c'
 )
+var userAccessAdministratorRoleDefinitionId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  'f1a07417-d97a-45cb-824c-7a7467783830'
+)
 var federatedCredentialName = 'github-main'
 var useImmutableSubject = !empty(githubOwnerId) && !empty(githubRepoId)
 var githubSubject = useImmutableSubject
@@ -47,6 +51,16 @@ resource contributorAssignment 'Microsoft.Authorization/roleAssignments@2022-04-
   scope: resourceGroup()
   properties: {
     roleDefinitionId: contributorRoleDefinitionId
+    principalId: githubDeploymentIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource userAccessAdministratorAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(resourceGroup().id, githubDeploymentIdentity.id, 'user-access-administrator')
+  scope: resourceGroup()
+  properties: {
+    roleDefinitionId: userAccessAdministratorRoleDefinitionId
     principalId: githubDeploymentIdentity.properties.principalId
     principalType: 'ServicePrincipal'
   }

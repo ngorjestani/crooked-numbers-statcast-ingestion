@@ -51,6 +51,8 @@ param replicaRetryLimit int = 1
 @description('Statcast lookback days passed to the ingestion job.')
 param statcastLookbackDays int = 3
 
+var blobAccountUrl = 'https://${storageAccount.name}.blob.${environment().suffixes.storage}'
+
 var storageBlobDataContributorRoleDefinitionId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
   'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
@@ -95,7 +97,7 @@ resource containerAppsEnvironment 'Microsoft.App/managedEnvironments@2024-03-01'
       destination: 'log-analytics'
       logAnalyticsConfiguration: {
         customerId: logAnalytics.properties.customerId
-        sharedKey: listKeys(logAnalytics.id, logAnalytics.apiVersion).primarySharedKey
+        sharedKey: logAnalytics.listKeys().primarySharedKey
       }
     }
   }
@@ -182,7 +184,7 @@ resource job 'Microsoft.App/jobs@2024-03-01' = {
           env: [
             {
               name: 'BLOB_ACCOUNT_URL'
-              value: 'https://crookednumbers.blob.core.windows.net'
+              value: blobAccountUrl
             }
             {
               name: 'STATCAST_CONTAINER'
