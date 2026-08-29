@@ -12,5 +12,11 @@ if [[ -f "${repo_root}/.env" ]]; then
 fi
 
 export PYTHONPATH="${repo_root}/src"
+venv_python="${repo_root}/.venv/bin/python"
 
-python -m crooked_numbers_ingest.ingest_statcast
+if [[ ! -x "${venv_python}" ]]; then
+  echo "Expected virtualenv interpreter at ${venv_python}. Create the project .venv first." >&2
+  exit 1
+fi
+
+"${venv_python}" -m crooked_numbers_ingest.ingest_statcast

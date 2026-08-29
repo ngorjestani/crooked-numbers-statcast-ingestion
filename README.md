@@ -2,7 +2,7 @@
 
 Ingestion repository for the Crooked Numbers baseball analytics platform.
 
-This repo is responsible for pulling source baseball data, validating it at the ingestion boundary, and writing raw datasets to Azure Blob Storage. It is intentionally scoped to ingestion only and does not include the future .NET or React dashboard application.
+This repo is responsible for pulling Statcast source data, validating it at the ingestion boundary, converting it to Parquet, and writing raw datasets to local storage, Azurite, or Azure Blob Storage. It is intentionally scoped to ingestion only and does not include the future .NET or React dashboard application.
 
 ## Purpose
 
@@ -25,9 +25,31 @@ Planned local workflow:
 3. Leave `STORAGE_MODE=local` to write output to the local filesystem by default.
 4. Switch to `azurite` or `azure` only when you explicitly want blob storage writes.
 
-This repository does not yet define Python application code, infrastructure templates, container build assets, or CI workflows. Those should be added incrementally as implementation begins.
+Current local run options:
 
-Python package code and a basic Docker image definition are now included. Infrastructure templates and CI workflows are still intentionally deferred.
+1. `./scripts/run-local.sh` using the repo `.venv`
+2. `PYTHONPATH=src python -m crooked_numbers_ingest.ingest_statcast`
+3. `docker run ...` for containerized execution
+
+Python package code and a basic Docker image definition are included. Infrastructure templates and CI workflows are still intentionally deferred.
+
+## Current Implementation
+
+The current codebase includes:
+
+- settings loading from environment variables via `python-dotenv`
+- UTC-based lookback date calculation
+- one-day Statcast fetches through `pybaseball.statcast`
+- dataframe enrichment with ingestion metadata
+- Parquet serialization with `pyarrow` and Snappy compression
+- storage sinks for local filesystem, Azurite, and Azure Blob Storage
+- unit tests for settings, dates, Parquet conversion, and storage path generation
+
+The current entry point is:
+
+```bash
+python -m crooked_numbers_ingest.ingest_statcast
+```
 
 ## Storage Modes
 
@@ -48,7 +70,7 @@ Default local development writes to the filesystem and does not touch Azure:
 ```bash
 STORAGE_MODE=local
 LOCAL_DATA_ROOT=./data
-PYTHONPATH=src python -m crooked_numbers_ingest.ingest_statcast
+./scripts/run-local.sh
 ```
 
 ### Azurite Mode
@@ -88,10 +110,12 @@ docker build -t crooked-numbers-statcast-ingestion .
 Run the ingestion job with a local `.env` file:
 
 ```bash
-docker run --rm --env-file .env crooked-numbers-statcast-ingestion
+docker run --rm --env-file .env -v "$(pwd)/data:/app/data" crooked-numbers-statcast-ingestion
 ```
 
-For local non-container execution, use:
+If `STORAGE_MODE=local`, mount `./data` into `/app/data` so output persists on the host.
+
+For local non-container execution, use the repo virtualenv:
 
 ```bash
 ./scripts/run-local.sh
@@ -113,7 +137,8 @@ Expected runtime pattern:
 1. A scheduled or manually triggered container job runs the ingestion task.
 2. The job authenticates with Azure using managed identity.
 3. The job pulls source baseball data.
-4. The job writes raw output files to the `baseball-data` container using partitioned paths.
+4. The job enriches the raw dataset with ingestion metadata and serializes it to Parquet.
+5. The job writes raw output files using the partitioned path convention.
 
 Managed identity should be the default production authentication model. Avoid account keys and connection strings for Azure mode. The Azurite development connection string is acceptable only for Azurite mode.
 
