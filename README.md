@@ -142,6 +142,35 @@ Expected runtime pattern:
 
 Managed identity should be the default production authentication model. Avoid account keys and connection strings for Azure mode. The Azurite development connection string is acceptable only for Azurite mode.
 
+## GitHub OIDC Bootstrap
+
+This repo includes a bootstrap Bicep template for creating a GitHub Actions deployment identity with OpenID Connect on the `main` branch:
+
+- [infra/bootstrap-github-identity.bicep](/Users/ngorjestani/SourceControl/crooked-numbers/crooked-numbers-statcast-ingestion/infra/bootstrap-github-identity.bicep)
+
+Deploy it locally against the existing `crooked-numbers` resource group:
+
+```bash
+az deployment group create \
+  --resource-group crooked-numbers \
+  --template-file infra/bootstrap-github-identity.bicep \
+  --parameters githubOwner=<github-owner> githubRepo=crooked-numbers-statcast-ingestion
+```
+
+The bootstrap template creates:
+
+- user-assigned managed identity `id-github-crooked-numbers-dev`
+- federated identity credential for `repo:<owner>/crooked-numbers-statcast-ingestion:ref:refs/heads/main`
+- `Contributor` role assignment on the `crooked-numbers` resource group
+
+After deployment, set these GitHub Actions secrets for the repository or environment:
+
+- `AZURE_CLIENT_ID`: output `clientId` from the bootstrap deployment
+- `AZURE_TENANT_ID`: Azure tenant ID for the subscription
+- `AZURE_SUBSCRIPTION_ID`: Azure subscription ID
+
+The `principalId` output is useful for auditing and RBAC verification, but it does not need to be stored in GitHub Actions.
+
 ## Expected Blob Layout
 
 Raw Statcast data should be written using this partitioned path convention:
