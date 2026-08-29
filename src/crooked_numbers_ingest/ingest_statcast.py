@@ -11,7 +11,11 @@ from crooked_numbers_ingest.parquet import (
     utc_now,
 )
 from crooked_numbers_ingest.settings import Settings
-from crooked_numbers_ingest.storage import AzureBlobParquetUploader, build_blob_metadata, build_blob_path
+from crooked_numbers_ingest.storage import (
+    build_blob_metadata,
+    build_blob_path,
+    create_parquet_sink,
+)
 from crooked_numbers_ingest.statcast import fetch_statcast_for_date
 
 LOGGER = logging.getLogger(__name__)
@@ -27,15 +31,11 @@ def run() -> None:
     )
 
     LOGGER.info(
-        "Starting Statcast ingestion in %s mode for container %s",
+        "Starting Statcast ingestion in %s mode with %s storage",
         settings.ingestion_mode,
-        settings.statcast_container,
+        settings.storage_mode,
     )
-    uploader = AzureBlobParquetUploader(
-        blob_account_url=settings.blob_account_url,
-        container_name=settings.statcast_container,
-        azure_client_id=settings.azure_client_id,
-    )
+    sink = create_parquet_sink(settings)
 
     for game_date in target_dates(settings.statcast_lookback_days):
         blob_path = build_blob_path(game_date)
@@ -64,7 +64,7 @@ def run() -> None:
             game_date.isoformat(),
             len(parquet_bytes),
         )
-        uploader.upload_parquet(
+        sink.write_parquet(
             blob_path,
             parquet_bytes,
             metadata=build_blob_metadata(
@@ -73,7 +73,7 @@ def run() -> None:
                 fetched_at_utc=fetched_at_utc,
             ),
         )
-        LOGGER.info("Uploaded parquet for %s to %s", game_date.isoformat(), blob_path)
+        LOGGER.info("Wrote parquet for %s to %s", game_date.isoformat(), blob_path)
 
 
 if __name__ == "__main__":

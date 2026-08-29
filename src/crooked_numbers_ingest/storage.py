@@ -4,28 +4,42 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
+from pathlib import Path
 from typing import Protocol
 
+from crooked_numbers_ingest.settings import Settings
 
-class ParquetUploader(Protocol):
-    """Interface for writing parquet bytes to object storage."""
 
-    def upload_parquet(self, blob_path: str, payload: bytes, *, metadata: dict[str, str]) -> None:
-        """Upload parquet content to the target blob path."""
+class ParquetSink(Protocol):
+    """Interface for writing parquet bytes to the configured destination."""
+
+    def write_parquet(self, relative_path: str, payload: bytes, *, metadata: dict[str, str]) -> None:
+        """Write parquet content to the target relative path."""
 
 
 @dataclass(slots=True)
-class AzureBlobParquetUploader:
-    """Upload parquet bytes to Azure Blob Storage."""
+class LocalParquetSink:
+    """Write parquet bytes to the local filesystem."""
 
-    blob_account_url: str
+    local_data_root: Path
+
+    def write_parquet(self, relative_path: str, payload: bytes, *, metadata: dict[str, str]) -> None:
+        output_path = self.local_data_root / relative_path
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(payload)
+
+
+@dataclass(slots=True)
+class BlobParquetSink:
+    """Upload parquet bytes to a blob service client."""
+
     container_name: str
-    azure_client_id: str | None = None
+    blob_service_client: object
 
-    def upload_parquet(self, blob_path: str, payload: bytes, *, metadata: dict[str, str]) -> None:
-        blob_client = self._blob_service_client().get_blob_client(
+    def write_parquet(self, relative_path: str, payload: bytes, *, metadata: dict[str, str]) -> None:
+        blob_client = self.blob_service_client.get_blob_client(
             container=self.container_name,
-            blob=blob_path,
+            blob=relative_path,
         )
         blob_client.upload_blob(
             payload,
@@ -33,16 +47,6 @@ class AzureBlobParquetUploader:
             content_settings=self._content_settings(),
             metadata=metadata,
         )
-
-    def _blob_service_client(self):
-        from azure.storage.blob import BlobServiceClient
-
-        return BlobServiceClient(account_url=self.blob_account_url, credential=self._credential())
-
-    def _credential(self):
-        from azure.identity import DefaultAzureCredential
-
-        return DefaultAzureCredential(managed_identity_client_id=self.azure_client_id)
 
     @staticmethod
     def _content_settings():
@@ -74,3 +78,40 @@ def build_blob_metadata(
         "row_count": str(row_count),
         "fetched_at_utc": fetched_at_utc,
     }
+
+
+def build_local_output_path(local_data_root: Path | str, game_date: date) -> Path:
+    """Build the local filesystem output path for a Statcast parquet file."""
+
+    return Path(local_data_root) / build_blob_path(game_date)
+
+
+def create_parquet_sink(settings: Settings) -> ParquetSink:
+    """Create the configured parquet sink for local, azurite, or azure output."""
+
+    if settings.storage_mode == "local":
+        return LocalParquetSink(local_data_root=settings.local_data_root)
+    return BlobParquetSink(
+        container_name=settings.statcast_container,
+        blob_service_client=create_blob_service_client(settings),
+    )
+
+
+def create_blob_service_client(settings: Settings):
+    """Create a blob service client for Azurite or Azure."""
+
+    from azure.storage.blob import BlobServiceClient
+
+    if settings.storage_mode == "azurite":
+        return BlobServiceClient.from_connection_string(settings.azurite_connection_string)
+
+    return BlobServiceClient(
+        account_url=settings.blob_account_url or "",
+        credential=_default_azure_credential(settings.azure_client_id),
+    )
+
+
+def _default_azure_credential(azure_client_id: str | None):
+    from azure.identity import DefaultAzureCredential
+
+    return DefaultAzureCredential(managed_identity_client_id=azure_client_id)

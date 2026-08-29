@@ -1,8 +1,13 @@
 from __future__ import annotations
 
 from datetime import date
+from pathlib import Path
 
-from crooked_numbers_ingest.storage import build_blob_metadata, build_blob_path
+from crooked_numbers_ingest.storage import (
+    build_blob_metadata,
+    build_blob_path,
+    build_local_output_path,
+)
 
 
 def test_build_blob_path_uses_expected_statcast_partition_layout() -> None:
@@ -25,3 +30,9 @@ def test_build_blob_metadata_uses_expected_values() -> None:
         "row_count": "321",
         "fetched_at_utc": "2026-08-27T00:15:00+00:00",
     }
+
+
+def test_build_local_output_path_uses_same_relative_layout() -> None:
+    output_path = build_local_output_path(Path("./data"), date(2026, 8, 26))
+
+    assert output_path == Path("data/raw/statcast/season=2026/game_date=2026-08-26/statcast.parquet")
