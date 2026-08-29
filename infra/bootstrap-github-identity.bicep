@@ -6,6 +6,12 @@ param githubOwner string
 @description('GitHub repository name.')
 param githubRepo string
 
+@description('Optional GitHub owner ID for immutable OIDC subject claims.')
+param githubOwnerId string = ''
+
+@description('Optional GitHub repository ID for immutable OIDC subject claims.')
+param githubRepoId string = ''
+
 @description('Azure location for the managed identity.')
 param location string = resourceGroup().location
 
@@ -14,7 +20,10 @@ var contributorRoleDefinitionId = subscriptionResourceId(
   'b24988ac-6180-42a0-ab88-20f7382dd24c'
 )
 var federatedCredentialName = 'github-main'
-var githubSubject = 'repo:${githubOwner}/${githubRepo}:ref:refs/heads/main'
+var useImmutableSubject = !empty(githubOwnerId) && !empty(githubRepoId)
+var githubSubject = useImmutableSubject
+  ? 'repo:${githubOwner}@${githubOwnerId}/${githubRepo}@${githubRepoId}:ref:refs/heads/main'
+  : 'repo:${githubOwner}/${githubRepo}:ref:refs/heads/main'
 
 resource githubDeploymentIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: 'id-github-crooked-numbers-dev'
@@ -45,3 +54,4 @@ resource contributorAssignment 'Microsoft.Authorization/roleAssignments@2022-04-
 
 output clientId string = githubDeploymentIdentity.properties.clientId
 output principalId string = githubDeploymentIdentity.properties.principalId
+output federatedSubject string = githubSubject

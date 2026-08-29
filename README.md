@@ -154,14 +154,26 @@ Deploy it locally against the existing `crooked-numbers` resource group:
 az deployment group create \
   --resource-group crooked-numbers \
   --template-file infra/bootstrap-github-identity.bicep \
-  --parameters githubOwner=<github-owner> githubRepo=crooked-numbers-statcast-ingestion
+  --parameters \
+    githubOwner=<github-owner> \
+    githubRepo=crooked-numbers-statcast-ingestion \
+    githubOwnerId=<github-owner-id> \
+    githubRepoId=<github-repo-id>
 ```
 
 The bootstrap template creates:
 
 - user-assigned managed identity `id-github-crooked-numbers-dev`
-- federated identity credential for `repo:<owner>/crooked-numbers-statcast-ingestion:ref:refs/heads/main`
+- federated identity credential for the repository `main` branch
 - `Contributor` role assignment on the `crooked-numbers` resource group
+
+For repositories using GitHub's immutable OIDC subject format, provide both `githubOwnerId` and `githubRepoId`. As of July 15, 2026, repositories created after that date use the immutable format by default, and renamed or transferred repositories also move to that format.
+
+Example immutable subject:
+
+```text
+repo:ngorjestani@20842373/crooked-numbers-statcast-ingestion@1348018859:ref:refs/heads/main
+```
 
 Deploy this bootstrap template once before the GitHub Actions deployment workflow is expected to authenticate with Azure.
 
