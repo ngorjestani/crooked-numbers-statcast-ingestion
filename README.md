@@ -163,13 +163,23 @@ The bootstrap template creates:
 - federated identity credential for `repo:<owner>/crooked-numbers-statcast-ingestion:ref:refs/heads/main`
 - `Contributor` role assignment on the `crooked-numbers` resource group
 
-After deployment, set these GitHub Actions secrets for the repository or environment:
+Deploy this bootstrap template once before the GitHub Actions deployment workflow is expected to authenticate with Azure.
+
+After deployment, set these GitHub Actions repository variables in:
+`Settings` -> `Secrets and variables` -> `Actions` -> `Variables`
 
 - `AZURE_CLIENT_ID`: output `clientId` from the bootstrap deployment
 - `AZURE_TENANT_ID`: Azure tenant ID for the subscription
 - `AZURE_SUBSCRIPTION_ID`: Azure subscription ID
+- `AZURE_RESOURCE_GROUP`: `crooked-numbers`
+- `AZURE_LOCATION`: Azure region for the resource group
+- `ACR_NAME`: `acrcrookednumbersdev`
+- `STORAGE_ACCOUNT_NAME`: `crookednumbers`
+- `STORAGE_CONTAINER_NAME`: `baseball-data`
 
 The `principalId` output is useful for auditing and RBAC verification, but it does not need to be stored in GitHub Actions.
+
+The deployment workflow uses GitHub Actions OIDC with repository variables, not client secrets.
 
 ## Expected Blob Layout
 

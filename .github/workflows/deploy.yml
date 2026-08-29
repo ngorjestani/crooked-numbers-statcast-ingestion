@@ -37,10 +37,18 @@ jobs:
         run: |
           echo "IMAGE_TAG=${GITHUB_SHA::12}" >> "${GITHUB_ENV}"
 
-      - name: Verify Azure Container Registry exists
+      - name: Bootstrap Azure infrastructure
         shell: bash
         run: |
-          az acr show --name "${{ vars.ACR_NAME }}" --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" >/dev/null
+          az deployment group create \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --template-file infra/main.bicep \
+            --parameters infra/parameters/dev.bicepparam \
+            location="${{ vars.AZURE_LOCATION }}" \
+            acrName="${{ vars.ACR_NAME }}" \
+            storageAccountName="${{ vars.STORAGE_ACCOUNT_NAME }}" \
+            blobContainerName="${{ vars.STORAGE_CONTAINER_NAME }}" \
+            imageName="${IMAGE_REPOSITORY}:${IMAGE_TAG}"
 
       - name: Build container image in Azure Container Registry
         shell: bash
@@ -51,7 +59,7 @@ jobs:
             --image "${IMAGE_REPOSITORY}:${IMAGE_TAG}" \
             .
 
-      - name: Deploy Azure infrastructure
+      - name: Deploy Azure infrastructure with built image
         shell: bash
         run: |
           az deployment group create \
