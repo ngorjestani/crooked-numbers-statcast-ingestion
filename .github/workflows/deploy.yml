@@ -48,7 +48,8 @@ jobs:
             acrName="${{ vars.ACR_NAME }}" \
             storageAccountName="${{ vars.STORAGE_ACCOUNT_NAME }}" \
             blobContainerName="${{ vars.STORAGE_CONTAINER_NAME }}" \
-            imageName="${IMAGE_REPOSITORY}:${IMAGE_TAG}"
+            imageName="${IMAGE_REPOSITORY}:${IMAGE_TAG}" \
+            deployJob=false
 
       - name: Build container image in Azure Container Registry
         shell: bash

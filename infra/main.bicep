@@ -33,6 +33,9 @@ param blobContainerName string
 @description('Repository and tag path within ACR, for example statcast-ingest:dev.')
 param imageName string
 
+@description('Whether to deploy the Container Apps Job resource.')
+param deployJob bool = true
+
 @description('Cron expression for the scheduled job.')
 param cronExpression string = '0 12 * * *'
 
@@ -145,7 +148,7 @@ resource acrPullAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' 
   }
 }
 
-resource job 'Microsoft.App/jobs@2024-03-01' = {
+resource job 'Microsoft.App/jobs@2024-03-01' = if (deployJob) {
   name: jobName
   location: location
   identity: {
@@ -216,4 +219,4 @@ resource job 'Microsoft.App/jobs@2024-03-01' = {
 output acrLoginServer string = acr.properties.loginServer
 output containerAppsEnvironmentId string = containerAppsEnvironment.id
 output jobIdentityClientId string = jobIdentity.properties.clientId
-output jobNameOutput string = job.name
+output jobNameOutput string = deployJob ? job.name : ''
