@@ -142,6 +142,8 @@ Expected runtime pattern:
 
 Managed identity should be the default production authentication model. Avoid account keys and connection strings for Azure mode. The Azurite development connection string is acceptable only for Azurite mode.
 
+With the current architecture, the storage account must allow network access from the Container Apps job. This repo manages Blob authorization through managed identity and RBAC, but the storage account still needs a reachable network path. If you later want private-only storage access, that should be implemented as an explicit private endpoint and DNS change rather than relying on the current public endpoint path.
+
 ## GitHub OIDC Bootstrap
 
 This repo includes a bootstrap Bicep template for creating a GitHub Actions deployment identity with OpenID Connect on the `main` branch:

@@ -24,7 +24,7 @@ param jobName string
 @description('User-assigned managed identity name for the job.')
 param jobIdentityName string
 
-@description('Existing storage account name.')
+@description('Storage account name.')
 param storageAccountName string
 
 @description('Blob container name.')
@@ -111,8 +111,29 @@ resource jobIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-3
   location: location
 }
 
-resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' existing = {
+resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   name: storageAccountName
+  location: location
+  sku: {
+    name: 'Standard_LRS'
+  }
+  kind: 'StorageV2'
+  properties: {
+    accessTier: 'Hot'
+    allowBlobPublicAccess: false
+    allowCrossTenantReplication: false
+    allowSharedKeyAccess: true
+    defaultToOAuthAuthentication: false
+    minimumTlsVersion: 'TLS1_2'
+    publicNetworkAccess: 'Enabled'
+    supportsHttpsTrafficOnly: true
+    networkAcls: {
+      bypass: 'AzureServices'
+      defaultAction: 'Allow'
+      ipRules: []
+      virtualNetworkRules: []
+    }
+  }
 }
 
 resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01' existing = {
