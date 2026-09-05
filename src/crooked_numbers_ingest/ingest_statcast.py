@@ -43,6 +43,13 @@ def run() -> None:
 
         statcast_frame = fetch_statcast_for_date(game_date)
         row_count = len(statcast_frame.index)
+        if row_count == 0:
+            LOGGER.info(
+                "No rows returned for %s; skipping conversion and upload",
+                game_date.isoformat(),
+            )
+            continue
+
         fetched_at = utc_now()
         fetched_at_utc = fetched_at_isoformat(fetched_at)
 
