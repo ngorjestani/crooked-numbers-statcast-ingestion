@@ -4,7 +4,7 @@ targetScope = 'resourceGroup'
 param githubOwner string
 
 @description('GitHub repository name.')
-param githubRepo string
+param githubRepo string = 'crooked-numbers-statcast-ingestion'
 
 @description('Optional GitHub owner ID for immutable OIDC subject claims.')
 param githubOwnerId string = ''
@@ -15,13 +15,15 @@ param githubRepoId string = ''
 @description('Azure location for the managed identity.')
 param location string = resourceGroup().location
 
-var contributorRoleDefinitionId = subscriptionResourceId(
+@description('Name of the GitHub Actions managed identity.')
+param identityName string = 'id-github-crooked-numbers-dev'
+
+@description('Existing Azure Storage account that receives Statcast data.')
+param storageAccountName string = 'crookednumbers'
+
+var storageBlobDataContributorRoleDefinitionId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
-  'b24988ac-6180-42a0-ab88-20f7382dd24c'
-)
-var userAccessAdministratorRoleDefinitionId = subscriptionResourceId(
-  'Microsoft.Authorization/roleDefinitions',
-  '18d7d88d-d35e-4fb5-a5c3-7773c20a72d9'
+  'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
 )
 var federatedCredentialName = 'github-main'
 var useImmutableSubject = !empty(githubOwnerId) && !empty(githubRepoId)
@@ -29,13 +31,13 @@ var githubSubject = useImmutableSubject
   ? 'repo:${githubOwner}@${githubOwnerId}/${githubRepo}@${githubRepoId}:ref:refs/heads/main'
   : 'repo:${githubOwner}/${githubRepo}:ref:refs/heads/main'
 
-resource githubDeploymentIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: 'id-github-crooked-numbers-dev'
+resource githubIngestionIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: identityName
   location: location
 }
 
 resource githubMainFederatedCredential 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2024-11-30' = {
-  parent: githubDeploymentIdentity
+  parent: githubIngestionIdentity
   name: federatedCredentialName
   properties: {
     issuer: 'https://token.actions.githubusercontent.com'
@@ -46,26 +48,22 @@ resource githubMainFederatedCredential 'Microsoft.ManagedIdentity/userAssignedId
   }
 }
 
-resource contributorAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, githubDeploymentIdentity.id, 'contributor')
-  scope: resourceGroup()
+resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' existing = {
+  name: storageAccountName
+}
+
+resource storageBlobDataContributorAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(storageAccount.id, githubIngestionIdentity.id, 'storage-blob-data-contributor')
+  scope: storageAccount
   properties: {
-    roleDefinitionId: contributorRoleDefinitionId
-    principalId: githubDeploymentIdentity.properties.principalId
+    roleDefinitionId: storageBlobDataContributorRoleDefinitionId
+    principalId: githubIngestionIdentity.properties.principalId
     principalType: 'ServicePrincipal'
   }
 }
 
-resource userAccessAdministratorAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, githubDeploymentIdentity.id, 'user-access-administrator')
-  scope: resourceGroup()
-  properties: {
-    roleDefinitionId: userAccessAdministratorRoleDefinitionId
-    principalId: githubDeploymentIdentity.properties.principalId
-    principalType: 'ServicePrincipal'
-  }
-}
-
-output clientId string = githubDeploymentIdentity.properties.clientId
-output principalId string = githubDeploymentIdentity.properties.principalId
+output clientId string = githubIngestionIdentity.properties.clientId
+output principalId string = githubIngestionIdentity.properties.principalId
 output federatedSubject string = githubSubject
+output tenantId string = tenant().tenantId
+output subscriptionId string = subscription().subscriptionId
