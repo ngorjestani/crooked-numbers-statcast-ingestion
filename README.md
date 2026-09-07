@@ -1,223 +1,146 @@
 # crooked-numbers-statcast-ingestion
 
-Ingestion repository for the Crooked Numbers baseball analytics platform.
+Statcast ingestion for the Crooked Numbers baseball analytics platform. The project fetches source data, validates it at the ingestion boundary, converts it to Parquet, and writes raw datasets to local storage, Azurite, or Azure Blob Storage.
 
-This repo is responsible for pulling Statcast source data, validating it at the ingestion boundary, converting it to Parquet, and writing raw datasets to local storage, Azurite, or Azure Blob Storage. It is intentionally scoped to ingestion only and does not include the future .NET or React dashboard application.
-
-## Purpose
-
-The initial focus is Statcast ingestion for downstream baseball analytics workflows. Raw data produced by this project should remain as close to the source as practical so later transform, modeling, and presentation layers can evolve independently.
-
-Key boundaries:
-
-- This repo owns ingestion into raw storage.
-- This repo does not own dashboard shaping or presentation-specific transforms.
-- Credentials and secrets must never be committed.
-
-## Local Development Overview
-
-Local Python development is expected to happen in PyCharm.
-
-Planned local workflow:
-
-1. Create a local virtual environment.
-2. Copy `.env.example` to `.env` for local configuration.
-3. Leave `STORAGE_MODE=local` to write output to the local filesystem by default.
-4. Switch to `azurite` or `azure` only when you explicitly want blob storage writes.
-
-Current local run options:
-
-1. `./scripts/run-local.sh` using the repo `.venv`
-2. `PYTHONPATH=src python -m crooked_numbers_ingest.ingest_statcast`
-3. `docker run ...` for containerized execution
-
-Python package code and a basic Docker image definition are included. Infrastructure templates and CI workflows are still intentionally deferred.
-
-## Current Implementation
-
-The current codebase includes:
-
-- settings loading from environment variables via `python-dotenv`
-- UTC-based lookback date calculation
-- one-day Statcast fetches through `pybaseball.statcast`
-- dataframe enrichment with ingestion metadata
-- Parquet serialization with `pyarrow` and Snappy compression
-- storage sinks for local filesystem, Azurite, and Azure Blob Storage
-- unit tests for settings, dates, Parquet conversion, and storage path generation
-
-The current entry point is:
+GitHub Actions is the preferred production ingestion runner. Azure is used only for Blob Storage in the current production architecture. The existing Python entry point remains the source of truth:
 
 ```bash
 python -m crooked_numbers_ingest.ingest_statcast
 ```
 
-## Storage Modes
+## Production ingestion
 
-The ingestion job supports three storage targets:
+The [Ingest Statcast Data workflow](.github/workflows/ingest-statcast.yml) runs every day at 12:00 UTC and can also be started manually. It:
 
-- `local`: writes parquet files under `LOCAL_DATA_ROOT`, default `./data`
-- `azurite`: writes to an Azurite blob container using `AZURITE_CONNECTION_STRING`
-- `azure`: writes to Azure Blob Storage using `DefaultAzureCredential` and `BLOB_ACCOUNT_URL`
+1. Authenticates to Azure with GitHub Actions OIDC and `azure/login`.
+2. Installs the Python dependencies from `requirements.txt`.
+3. Runs the existing Python ingestion module with a three-day lookback by default.
+4. Writes Parquet files to the `baseball-data` container in the `crookednumbers` storage account.
 
-All modes use the same relative path layout:
+Scheduled runs set `INGESTION_MODE=github_actions_scheduled`; manual runs set it to `github_actions_manual`.
 
-`raw/statcast/season=YYYY/game_date=YYYY-MM-DD/statcast.parquet`
-
-### Local Mode
-
-Default local development writes to the filesystem and does not touch Azure:
-
-```bash
-STORAGE_MODE=local
-LOCAL_DATA_ROOT=./data
-./scripts/run-local.sh
-```
-
-### Azurite Mode
-
-Use Azurite when you want blob-compatible local testing:
-
-```bash
-STORAGE_MODE=azurite
-STATCAST_CONTAINER=baseball-data
-AZURITE_CONNECTION_STRING=UseDevelopmentStorage=true
-PYTHONPATH=src python -m crooked_numbers_ingest.ingest_statcast
-```
-
-Azurite and Azure share the same blob upload behavior after client creation. The only difference is how the `BlobServiceClient` is constructed.
-
-### Azure Mode
-
-Use real Azure only when explicitly intended:
-
-```bash
-STORAGE_MODE=azure
-BLOB_ACCOUNT_URL=https://crookednumbers.blob.core.windows.net
-STATCAST_CONTAINER=baseball-data
-PYTHONPATH=src python -m crooked_numbers_ingest.ingest_statcast
-```
-
-Azure mode uses `DefaultAzureCredential`. If you need a user-assigned managed identity, set `AZURE_CLIENT_ID`.
-
-## Docker
-
-Build the image from the repo root:
-
-```bash
-docker build -t crooked-numbers-statcast-ingestion .
-```
-
-Run the ingestion job with a local `.env` file:
-
-```bash
-docker run --rm --env-file .env -v "$(pwd)/data:/app/data" crooked-numbers-statcast-ingestion
-```
-
-If `STORAGE_MODE=local`, mount `./data` into `/app/data` so output persists on the host.
-
-For local non-container execution, use the repo virtualenv:
-
-```bash
-./scripts/run-local.sh
-```
-
-## Azure Target Architecture
-
-The intended cloud target is Azure Container Apps Job.
-
-Current target resource layout:
-
-- Azure resource group: `crooked-numbers`
-- Azure storage account: `crookednumbers`
-- Blob container: `baseball-data`
-- Planned compute target: Azure Container Apps Job
-
-Expected runtime pattern:
-
-1. A scheduled or manually triggered container job runs the ingestion task.
-2. The job authenticates with Azure using managed identity.
-3. The job pulls source baseball data.
-4. The job enriches the raw dataset with ingestion metadata and serializes it to Parquet.
-5. The job writes raw output files using the partitioned path convention.
-
-Managed identity should be the default production authentication model. Avoid account keys and connection strings for Azure mode. The Azurite development connection string is acceptable only for Azurite mode.
-
-With the current architecture, the storage account must allow network access from the Container Apps job. This repo manages Blob authorization through managed identity and RBAC, but the storage account still needs a reachable network path. If you later want private-only storage access, that should be implemented as an explicit private endpoint and DNS change rather than relying on the current public endpoint path.
-
-## GitHub OIDC Bootstrap
-
-This repo includes a bootstrap Bicep template for creating a GitHub Actions deployment identity with OpenID Connect on the `main` branch:
-
-- [infra/bootstrap-github-identity.bicep](/Users/ngorjestani/SourceControl/crooked-numbers/crooked-numbers-statcast-ingestion/infra/bootstrap-github-identity.bicep)
-
-Deploy it locally against the existing `crooked-numbers` resource group:
-
-```bash
-az deployment group create \
-  --resource-group crooked-numbers \
-  --template-file infra/bootstrap-github-identity.bicep \
-  --parameters \
-    githubOwner=<github-owner> \
-    githubRepo=crooked-numbers-statcast-ingestion \
-    githubOwnerId=<github-owner-id> \
-    githubRepoId=<github-repo-id>
-```
-
-The bootstrap template creates:
-
-- user-assigned managed identity `id-github-crooked-numbers-dev`
-- federated identity credential for the repository `main` branch
-- `Contributor` role assignment on the `crooked-numbers` resource group
-- `User Access Administrator` role assignment on the `crooked-numbers` resource group
-
-For repositories using GitHub's immutable OIDC subject format, provide both `githubOwnerId` and `githubRepoId`. As of July 15, 2026, repositories created after that date use the immutable format by default, and renamed or transferred repositories also move to that format.
-
-Example immutable subject:
+All storage modes use the same relative blob/file layout:
 
 ```text
-repo:ngorjestani@20842373/crooked-numbers-statcast-ingestion@1348018859:ref:refs/heads/main
+raw/statcast/season=YYYY/game_date=YYYY-MM-DD/statcast.parquet
 ```
-
-Deploy this bootstrap template once before the GitHub Actions deployment workflow is expected to authenticate with Azure.
-
-After deployment, set these GitHub Actions repository variables in:
-`Settings` -> `Secrets and variables` -> `Actions` -> `Variables`
-
-- `AZURE_CLIENT_ID`: output `clientId` from the bootstrap deployment
-- `AZURE_TENANT_ID`: Azure tenant ID for the subscription
-- `AZURE_SUBSCRIPTION_ID`: Azure subscription ID
-- `AZURE_RESOURCE_GROUP`: `crooked-numbers`
-- `AZURE_LOCATION`: Azure region for the resource group
-- `ACR_NAME`: `acrcrookednumbersdev`
-- `STORAGE_ACCOUNT_NAME`: `crookednumbers`
-- `STORAGE_CONTAINER_NAME`: `baseball-data`
-
-The `principalId` output is useful for auditing and RBAC verification, but it does not need to be stored in GitHub Actions.
-
-The deployment workflow uses GitHub Actions OIDC with repository variables, not client secrets.
-
-If the bootstrap identity already exists, redeploying the bootstrap template is still required when you change its role assignments or federated credential shape. Azure will reconcile the identity configuration, but it will not pick up new permissions until the template is deployed again.
-
-## Expected Blob Layout
-
-Raw Statcast data should be written using this partitioned path convention:
-
-`raw/statcast/season=YYYY/game_date=YYYY-MM-DD/statcast.parquet`
 
 Example:
 
-`raw/statcast/season=2025/game_date=2025-04-15/statcast.parquet`
+```text
+raw/statcast/season=2025/game_date=2025-04-15/statcast.parquet
+```
 
-This layout keeps raw ingestion organized by season and game date while remaining easy to consume from downstream processing systems.
+## Configure GitHub Actions OIDC
 
-## Security
+Create or select a Microsoft Entra application or user-assigned managed identity for this repository. In its **Federated credentials** settings, add the **GitHub Actions deploying Azure resources** scenario, select this repository, choose **Branch** as the entity type, and use `main`. This configures trust in GitHub's OIDC provider with:
 
-Do not commit:
+- Issuer: `https://token.actions.githubusercontent.com`
+- Audience: `api://AzureADTokenExchange`
+- Subject: the GitHub repository's `main` branch identity (configure the credential using the GitHub Actions federated-credential scenario in Azure)
 
-- Azure credentials
-- account keys
-- connection strings
-- populated `.env` files
-- any other secrets or tokens
+In the `crooked-numbers` resource group, grant that identity the **Storage Blob Data Contributor** role at either of these scopes:
 
-Use environment variables locally and managed identity where available.
+- the `crookednumbers` storage account, or
+- the `baseball-data` blob container for narrower access.
+
+Storage data-plane access is the only Azure role required by the ingestion workflow. Do not configure an Azure client secret, storage account key, or Azure Storage connection string.
+
+In the GitHub repository, open **Settings → Secrets and variables → Actions → Variables** and create these repository variables:
+
+- `AZURE_CLIENT_ID`: client ID of the federated Azure identity
+- `AZURE_TENANT_ID`: Microsoft Entra tenant ID
+- `AZURE_SUBSCRIPTION_ID`: Azure subscription ID containing the storage account
+
+These are identifiers rather than credentials and are consumed directly by `azure/login@v2`.
+
+## Run manually
+
+In GitHub, go to **Actions → Ingest Statcast Data → Run workflow**. Select the `main` branch, enter `lookback_days` or leave its default value of `3`, then start the run.
+
+The input controls the rolling date window used by the existing ingestion code. You can still use explicit date ranges for local backfills as described below.
+
+## Verify Azure output
+
+After a successful run, use an Azure CLI identity with permission to read blob data:
+
+```bash
+az storage blob list \
+  --account-name crookednumbers \
+  --container-name baseball-data \
+  --prefix "raw/statcast/" \
+  --auth-mode login \
+  --output table
+```
+
+## Local development
+
+Create a virtual environment and install the development dependencies, then use the repository script or invoke the module directly:
+
+```bash
+./scripts/run-local.sh
+```
+
+```bash
+PYTHONPATH=src python -m crooked_numbers_ingest.ingest_statcast
+```
+
+For a one-off inclusive date range:
+
+```bash
+./scripts/run-local.sh --start-date 2026-03-28 --end-date 2026-08-28
+```
+
+The ingestion code supports three storage modes:
+
+- `local`: writes Parquet files under `LOCAL_DATA_ROOT` (default `./data`)
+- `azurite`: writes to local Azurite using `AZURITE_CONNECTION_STRING`
+- `azure`: writes to Azure Blob Storage using `DefaultAzureCredential` and `BLOB_ACCOUNT_URL`
+
+Local filesystem mode:
+
+```bash
+STORAGE_MODE=local LOCAL_DATA_ROOT=./data ./scripts/run-local.sh
+```
+
+Azurite mode remains supported for blob-compatible local testing:
+
+```bash
+STORAGE_MODE=azurite \
+STATCAST_CONTAINER=baseball-data \
+AZURITE_CONNECTION_STRING=UseDevelopmentStorage=true \
+PYTHONPATH=src python -m crooked_numbers_ingest.ingest_statcast
+```
+
+For intentional direct Azure runs, sign in with an identity that has Blob data access and use:
+
+```bash
+STORAGE_MODE=azure \
+BLOB_ACCOUNT_URL=https://crookednumbers.blob.core.windows.net \
+STATCAST_CONTAINER=baseball-data \
+PYTHONPATH=src python -m crooked_numbers_ingest.ingest_statcast
+```
+
+Azure mode uses `DefaultAzureCredential`. It does not use storage account keys or connection strings.
+
+## Deprecated and optional container assets
+
+Azure Container Apps Job and Azure Container Registry are no longer the primary ingestion runner. The following assets remain temporarily for reference or optional legacy use and should not be treated as the production path:
+
+- `Dockerfile`
+- `infra/main.bicep`
+- `infra/bootstrap-github-identity.bicep`
+- `scripts/deploy.sh`
+- `scripts/run-job.sh`
+
+The Docker image can still be used for local experimentation, but its Azure Container Apps/ACR deployment path is deprecated. The local and Azurite modes are still supported.
+
+### Migration cleanup
+
+After the GitHub Actions workflow succeeds and the expected blobs have been verified, disable or delete the old Container Apps Job, ACR, Container Apps Environment, Log Analytics workspace, and job managed identity. Confirm that none of these resources are shared before deleting them.
+
+## Repository boundaries and security
+
+This repository owns raw ingestion only. It does not own dashboard transforms, reporting logic, or presentation-layer shaping.
+
+Never commit Azure credentials, account keys, client secrets, connection strings for real Azure storage, populated `.env` files, or generated authentication artifacts. Azurite's development connection string is allowed only for local Azurite use.

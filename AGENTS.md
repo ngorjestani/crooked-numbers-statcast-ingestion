@@ -10,9 +10,12 @@ Guidance for future Codex runs in this repository.
 
 ## Architecture and Authentication
 
+- GitHub Actions is the preferred production runner for Statcast ingestion.
+- Azure Blob Storage remains the production data destination.
+- Do not modify Container Apps, Docker, or Azure Container Registry configuration unless explicitly requested; those assets are retained only as optional/deprecated paths.
 - Prefer Azure managed identity and `DefaultAzureCredential` for Azure access.
 - Do not use Azure account keys.
-- Do not use Azure storage connection strings unless the user explicitly directs otherwise.
+- Do not use Azure storage connection strings for real Azure access. Connection strings are permitted only for local Azurite mode unless the user explicitly directs otherwise.
 - Preserve the raw blob layout convention for Statcast ingestion:
   `raw/statcast/season=YYYY/game_date=YYYY-MM-DD/statcast.parquet`
 
