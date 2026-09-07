@@ -12,7 +12,9 @@ Guidance for future Codex runs in this repository.
 
 - GitHub Actions is the preferred production runner for Statcast ingestion.
 - Azure Blob Storage remains the production data destination.
-- Do not modify Container Apps, Docker, or Azure Container Registry configuration unless explicitly requested; those assets are retained only as optional/deprecated paths.
+- Do not introduce Container Apps or Azure Container Registry infrastructure unless explicitly requested.
+- The Dockerfile is retained only as an optional local container execution path.
+- Keep `infra/bootstrap-github-identity.bicep` focused on the GitHub OIDC identity, its federated credential, and least-privilege Blob Storage access.
 - Prefer Azure managed identity and `DefaultAzureCredential` for Azure access.
 - Do not use Azure account keys.
 - Do not use Azure storage connection strings for real Azure access. Connection strings are permitted only for local Azurite mode unless the user explicitly directs otherwise.

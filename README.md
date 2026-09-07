@@ -54,6 +54,28 @@ In the GitHub repository, open **Settings → Secrets and variables → Actions 
 
 These are identifiers rather than credentials and are consumed directly by `azure/login@v2`.
 
+### Recreate the GitHub identity with Bicep
+
+The repository retains a focused [OIDC identity bootstrap template](infra/bootstrap-github-identity.bicep). It creates only:
+
+- the user-assigned managed identity used by GitHub Actions,
+- the federated credential for this repository's `main` branch, and
+- a **Storage Blob Data Contributor** assignment on the existing `crookednumbers` storage account.
+
+It does not deploy or grant access to Container Apps, ACR, or other compute infrastructure. Deploy it locally with an Azure identity allowed to create managed identities and role assignments:
+
+```bash
+az deployment group create \
+  --resource-group crooked-numbers \
+  --template-file infra/bootstrap-github-identity.bicep \
+  --parameters githubOwner=<github-owner> \
+  --query properties.outputs
+```
+
+If the repository uses GitHub immutable OIDC subjects, also supply `githubOwnerId` and `githubRepoId`. Use the deployment outputs to populate `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and `AZURE_SUBSCRIPTION_ID` in GitHub.
+
+This template is intended for bootstrapping or recreating the identity. Removing role assignments from a Bicep template does not revoke assignments created by an earlier deployment. For an existing identity, separately remove the former resource-group **Contributor** and **User Access Administrator** assignments after verifying that no deployment workflow still needs them.
+
 ## Run manually
 
 In GitHub, go to **Actions → Ingest Statcast Data → Run workflow**. Select the `main` branch, enter `lookback_days` or leave its default value of `3`, then start the run.
@@ -123,21 +145,9 @@ PYTHONPATH=src python -m crooked_numbers_ingest.ingest_statcast
 
 Azure mode uses `DefaultAzureCredential`. It does not use storage account keys or connection strings.
 
-## Deprecated and optional container assets
+## Optional local container
 
-Azure Container Apps Job and Azure Container Registry are no longer the primary ingestion runner. The following assets remain temporarily for reference or optional legacy use and should not be treated as the production path:
-
-- `Dockerfile`
-- `infra/main.bicep`
-- `infra/bootstrap-github-identity.bicep`
-- `scripts/deploy.sh`
-- `scripts/run-job.sh`
-
-The Docker image can still be used for local experimentation, but its Azure Container Apps/ACR deployment path is deprecated. The local and Azurite modes are still supported.
-
-### Migration cleanup
-
-After the GitHub Actions workflow succeeds and the expected blobs have been verified, disable or delete the old Container Apps Job, ACR, Container Apps Environment, Log Analytics workspace, and job managed identity. Confirm that none of these resources are shared before deleting them.
+The `Dockerfile` remains available for local container-based execution. The repository no longer contains deployment automation for Azure Container Apps or Azure Container Registry. The only retained Azure infrastructure template bootstraps the GitHub OIDC identity and its Blob Storage permission. Local filesystem and Azurite modes remain supported.
 
 ## Repository boundaries and security
 
