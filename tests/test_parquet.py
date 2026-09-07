@@ -6,7 +6,7 @@ from datetime import UTC, date, datetime
 import pandas as pd
 import pyarrow.parquet as pq
 
-from crooked_numbers_ingest.parquet import statcast_dataframe_to_parquet_bytes
+from crooked_numbers_ingest.parquet import SOURCE_NAME, statcast_dataframe_to_parquet_bytes
 
 
 def test_statcast_dataframe_to_parquet_bytes_adds_metadata_and_pitch_uid() -> None:
@@ -32,7 +32,7 @@ def test_statcast_dataframe_to_parquet_bytes_adds_metadata_and_pitch_uid() -> No
 
     assert result.loc[0, "game_pk"] == 123
     assert result.loc[0, "events"] == "single"
-    assert result.loc[0, "source_name"] == "statcast"
+    assert result.loc[0, "source_name"] == SOURCE_NAME
     assert result.loc[0, "source_query_start_date"] == "2026-08-26"
     assert result.loc[0, "source_query_end_date"] == "2026-08-26"
     assert result.loc[0, "fetched_at_utc"] == "2026-08-27T12:30:00+00:00"
